@@ -13,9 +13,9 @@ rx_all = re.compile("^([^\t]*\t){25}[^\t\n]*\n$")
 date_str = "[^\t\d]*([^\t\d]|^)(184[8-9]|18[5-9]\d|19\d\d)([^\t\d]|$)[^\t]*" #matches valid year in a larger string
 
 date_simple = "(184[8-9]|18[5-9]\d|19\d\d)"
-rx_allow_eng_date = re.compile("^[^\t]*\tallow\t([^\t]*\t){14}"+date_simple+"\t[^\t]*\teng*\t([^\t]*\t){6}[^\t\n]*\n$")
+rx_allow_eng_date = re.compile("^[^\t]*\tallow\t([^\t]*\t){14}"+date_simple+"\t[^\t]*\teng\t([^\t]*\t){6}[^\t\n]*\n$")
 
-# pattern for something explicitly about music performance
+# pattern for something explicitly about music performance in the document title
 music_keywords = "(music(al)?|opera(tic)?|orchestra(l)?|symphon(y|ic|ies)|philharmon(ic|ia)|chor(us|al)|choir(s)|ensemble(s)?|quartet|oratorio)"
 #authpub_keywords = "(music(al)? festival|opera(tic)?|orchestra(l)?|symphon(y|ic|ies)|philharmon(ic|ia)|chor(us|al)|choir(s)?|ensemble(s)?|quartet|oratorio)"
 
@@ -41,7 +41,7 @@ rx_keyword_authpub = "("+"|".join(authpub_patterns)+")"
 
 # multi conditional pattern -- must match patterns in both title and author/publisher
 m_keywords = "(program(s|me|mes)|concert(s)|performance(s)|opera(tic)?|orchestra(l)?|"+\
-	"symphon(y|ic|ies)|philharmon(ic|ia)|chor(us|al)|choir(s)|ensemble(s)?|quartet|oratorio)"
+	"symphon(y|ic|ies)|philharmon(ic|ia)|chor(us|al)|choir(s)|ensemble(s)?|quartet|festival|oratorio)"
 rx_multi_patterns = [\
 	"^([^\t]*\t){11}[^\t]*[^\t\w]program(s|me|mes)[^\t\w][^\t]*((\t[^\t]*school of music[^\t]*\t)|(\t([^\t]*\t){13}[^\t]*school of music[^\t]*\n))",\
 	"^([^\t]*\t){11}[^\t]*[^\t\w]"+m_keywords+"[^\t\w][^\t]*\t"+\
@@ -49,6 +49,19 @@ rx_multi_patterns = [\
 	"|(([^\t]*\t){13}[^\t]*(music(al)? (societ(y|ies)|association|club))[^\t]*\n))"\
 	]
 rx_keyword_multi = "(" + "|".join(rx_multi_patterns) + ")"
+
+# multi conditional pattern incorporating all previous patterns
+rx_multi_patterns_combined = \
+	[\
+	"^[^\t]*\tallow\t([^\t]*\t){9}[^\t]*[^\t\w]program(s|me|mes)[^\t\w][^\t]*"+\
+	"((\t[^\t]*school of music[^\t]*\t([^\t]*\t){3}"+date_simple+"\t[^\t]*\teng\t)|"+\
+	"(\t([^\t]*\t){4}"+date_simple+"\t[^\t]*\teng\t([^\t]*\t){6}[^\t]*school of music[^\t]*\n))",\
+	"^[^\t]*\tallow\t([^\t]*\t){9}[^\t]*[^\t\w]"+m_keywords+"[^\t\w][^\t]*\t"+\
+        "(([^\t]*(music(al)? (societ(y|ies)|association|club))[^\t]*\t([^\t]*\t){3}"+date_simple+"\t[^\t]*\teng\t)"+\
+        "|(([^\t]*\t){4}"+date_simple+"\t[^\t]*\teng\t([^\t]*\t){6}[^\t]*(music(al)? (societ(y|ies)|association|club))[^\t]*\n))"\
+	]
+rx_keyword_multi_combined = "(" + "|".join(rx_multi_patterns_combined) + ")"
+
 #print(repr(rx_keyword_multi))
 #re.compile(rx_keyword_multi)
 
@@ -56,13 +69,18 @@ rx_keyword_multi = "(" + "|".join(rx_multi_patterns) + ")"
 #print(rx_keyword_authpub)
 
 # combining all keyword patterns
-rx_str = "^([^\t]*\t){11}"+rx_keyword_title+"\t|([^\t]*\t){12}(("+rx_keyword_authpub+"\t)|(([^\t]*\t){13}"+rx_keyword_authpub+"\n))|"+rx_keyword_multi
-print(repr(rx_str))
+rx_str = "^([^\t]*\t){11}"+rx_keyword_title+"\t|^([^\t]*\t){12}(("+rx_keyword_authpub+"\t)|(([^\t]*\t){13}"+rx_keyword_authpub+"\n))|"+rx_keyword_multi
+#print(repr(rx_str))
 rx = re.compile(rx_str, re.IGNORECASE)
 
 
 # combining over all previous patterns (allow, english, pub date 1848-1999, keywords)
-#rx_combined =
+rx_combined_str = "^[^\t]*\tallow\t([^\t]*\t){9}"+rx_keyword_title+"\t([^\t]*\t){4}"+date_simple+"\t[^\t]*\teng\t" + "|" + \
+	"^[^\t]*\tallow\t([^\t]*\t){10}(("+rx_keyword_authpub+"\t([^\t]*\t){3}"+date_simple+"\t[^\t]*\teng\t)|"+\
+	"(([^\t]*\t){4}"+date_simple+"\t[^\t]*\teng\t([^\t]*\t){6}"+rx_keyword_authpub+"\n))" + "|" + rx_keyword_multi_combined
+#print(repr(rx_combined_str))
+rx_combined = re.compile(rx_combined_str, re.IGNORECASE)
+
 
 count = 0
 total = 0
@@ -73,7 +91,15 @@ with gzip.open(os.path.expanduser("~/corpora/rx_filtered_date.tsv.gz"), "rt") as
 			if re.search(rx, doc):
 				count += 1
 				filtered.write(doc)
-				#print(doc)
-			if total % 50000 == 0:
-				print(count)
+				print(doc)
+			#if total % 50000 == 0:
+			#	print(count)
 print(count)
+
+#with gzip.open("data/rx_filtered_keyword.tsv.gz", "rt") as f:
+#	for doc in f:
+#		total += 1
+#		if re.search(rx_combined, doc):
+#			count += 1
+#print(count)
+#print(total)
