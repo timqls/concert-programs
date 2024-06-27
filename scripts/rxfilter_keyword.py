@@ -88,10 +88,10 @@ with gzip.open(os.path.expanduser("~/corpora/rx_filtered_date.tsv.gz"), "rt") as
 	with gzip.open("data/rx_filtered_keyword.tsv.gz", "wt") as filtered:
 		for doc in f:
 			total += 1
-			if re.search(rx, doc):
+			if re.search(rx_combined, doc):
 				count += 1
 				filtered.write(doc)
-				print(doc)
+				#print(doc)
 			#if total % 50000 == 0:
 			#	print(count)
 print(count)
