@@ -23,9 +23,9 @@ logger = logging.getLogger("populate_hathitrust")
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--hathitrust_root", dest="hathitrust_root", help="HathiTrust root directory")
-	parser.add_argument("--input", dest="input", help="Input file")
-	parser.add_argument("--output", dest="output", help="Output file")
+	parser.add_argument("--hathitrust_root", dest="hathitrust_root", help="HathiTrust root directory") # hathi_trust/
+	parser.add_argument("--input", dest="input", help="Input file") # data/hathi_index_filtered.tsv.gz
+	parser.add_argument("--output", dest="output", help="Output file") # concert_programs.json.gz
 	args = parser.parse_args()
 
 	logging.basicConfig(level=logging.INFO)
