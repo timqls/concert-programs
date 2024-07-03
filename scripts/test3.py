@@ -10,10 +10,12 @@ rx = re.compile(rx_str, re.IGNORECASE)
 
 count = 0
 total = 0
-with gzip.open(os.path.expanduser("~/corpora/rx_filtered_date.tsv.gz"), "rt") as f:
+with gzip.open(os.path.expanduser("~/projects/concert-programs/data/rx_filtered_keyword.tsv.gz"), "rt") as f:
 	for doc in f:
+		doc_info = doc.split("\t")
+		#print(doc_info)
 		total += 1
-		if re.search(rx, doc):
+		if re.fullmatch("[\W]*", doc_info[16]):
 			count += 1
 			print(doc)
 
