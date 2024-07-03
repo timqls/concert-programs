@@ -69,7 +69,7 @@ if __name__ == "__main__":
 			except Exception as e:
 				logger.error("Could not access HathiTrust document '%s'", htid)
 				#raise e
-				pass # get_object fails for a handful of entries in the input file
+				continue # get_object fails for a handful of entries in the input file
 			full_content = []
 			for subpath in obj.list_parts():
 				for fname in obj.list_parts(subpath):
