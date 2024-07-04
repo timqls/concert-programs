@@ -24,16 +24,14 @@ from steamroller import Environment
 # i.e. without having to directly edit this file.
 vars = Variables("custom.py")
 vars.AddVariables(
-    ("OUTPUT_WIDTH", "", 5000),
-    ("MODEL_TYPES", "", ["naive_bayes", "neural"]),
-    ("PARAMETER_VALUES", "", [0.1, 0.5, 0.9]),
-    ("DATASETS", "", {"example_dataset" : "data/materials.txt"}),
-    ("FOLDS", "", 1),
-    ("CPU_QUEUE", "", "some_queue"),
-    ("CPU_ACCOUNT", "", "some_account"),    
-    ("GPU_QUEUE", "", "another_queue"),
-    ("GPU_ACCOUNT", "", "another_account"),
-    ("GPU_COUNT", "", 1),
+	("OUTPUT_WIDTH", "", 5000),
+	("MODEL_TYPES", "", ["naive_bayes", "neural"]),
+	("PARAMETER_VALUES", "", [0.1, 0.5, 0.9]),
+	("DATASETS", "", {"example_dataset" : "data/materials.txt"}),
+	("HATHITRUST_ROOT", "", "hathi_trust/")
+	("HATHITRUST_INDEX", "", "hathi_trust/hathi_index.tsv.gz")
+	("FILTERED_INDEX", "", "data/hathi_index_filtered.tsv.gz")
+	("FULL_CONTENT", "", "concert_programs.json.gz")
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
@@ -48,11 +46,11 @@ env = Environment(
     # in values for these (note that e.g. the existence of a MODEL_TYPES variable above doesn't
     # automatically populate MODEL_TYPE, we'll do this with for-loops).
     BUILDERS={
-        "PreprocessData" : Builder(
-            action="python scripts/preprocess_data.py --input ${SOURCES[0]} --outputs ${TARGETS[0]}"
+        "FilterIndex" : Builder(
+            action="python scripts/filter_hathi_index.py --hathitrust_index ${SOURCES[0]} --output ${TARGETS[0]}"
         ),
-        "ShuffleData" : Builder(
-            action="python scripts/shuffle_data.py --dataset ${SOURCES[0]} --outputs ${TARGETS}"
+        "PopulateFromIndex" : Builder(
+            action="python scripts/populate_from_index.py --hathitrust_root ${SOURCES[0]} --input ${SOURCES[1]} --output ${TARGETS[0]}"
         ),
         "TrainModel" : Builder(
             action="python scripts/train_model.py --parameter_value ${PARAMETER_VALUE} --model_type ${MODEL_TYPE} --train ${SOURCES[0]} --dev ${SOURCES[1]} --outputs ${TARGETS[0]}"            
