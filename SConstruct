@@ -1,4 +1,4 @@
-import osrefname refs/heads/master not found
+import os
 import os.path
 import logging
 import random
@@ -24,7 +24,7 @@ from steamroller import Environment
 # i.e. without having to directly edit this file.
 vars = Variables("custom.py")
 vars.AddVariables(\
-	("HATHITRUST_ROOT", "", "hathi_trust/"), \
+	("HATHITRUST_ROOT", "", "hathi_trust"), \
 	("HATHITRUST_INDEX", "", "${HATHITRUST_ROOT}/hathi_index.tsv.gz"), \
 	("FILTERED_INDEX", "", "data/hathi_index_filtered.tsv.gz"), \
 	("FULL_CONTENT", "", "concert_programs.json.gz"), \
@@ -40,10 +40,10 @@ env = Environment( \
     # and MODEL_TYPE.  When we invoke the TrainModel builder (see below), we'll need to pass
     # in values for these (note that e.g. the existence of a MODEL_TYPES variable above doesn't
     # automatically populate MODEL_TYPE, we'll do this with for-loops).
-    	BUILDERS={ \
-        	"FilterIndex" : Builder(action="python scripts/filter_hathi_index.py --hathitrust_index ${HATHITRUST_INDEX} --output ${FILTERED_INDEX}"), \
-        	"PopulateFromIndex" : Builder( \
-		action="python scripts/populate_from_index.py --hathitrust_root ${HATHITRUST_ROOT} --input ${FILTERED_INDEX} --output ${FULL_CONTENT}" \
+	BUILDERS={ \
+		"FilterIndex" : Builder(action="python scripts/filter_hathi_index.py --hathitrust_index ${HATHITRUST_INDEX} --output ${FILTERED_INDEX}"), \
+		"PopulateFromIndex" : Builder( \
+		action="python scripts/populate_from_index.py --hathitrust_root ${HATHITRUST_ROOT} --input ${FILTERED_INDEX} --output ${FULL_CONTENT}") \
 		} \
 	)
 
