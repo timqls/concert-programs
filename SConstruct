@@ -23,46 +23,29 @@ from steamroller import Environment
 # Adding some indirection like this allows us finer-grained control using "custom.py",
 # i.e. without having to directly edit this file.
 vars = Variables("custom.py")
-vars.AddVariables(
-	("OUTPUT_WIDTH", "", 5000),
-	("MODEL_TYPES", "", ["naive_bayes", "neural"]),
-	("PARAMETER_VALUES", "", [0.1, 0.5, 0.9]),
-	("DATASETS", "", {"example_dataset" : "data/materials.txt"}),
-	("HATHITRUST_ROOT", "", "hathi_trust/")
-	("HATHITRUST_INDEX", "", "hathi_trust/hathi_index.tsv.gz")
-	("FILTERED_INDEX", "", "data/hathi_index_filtered.tsv.gz")
-	("FULL_CONTENT", "", "concert_programs.json.gz")
+vars.AddVariables(\
+	("HATHITRUST_ROOT", "", "hathi_trust/"), \
+	("HATHITRUST_INDEX", "", "${HATHITRUST_ROOT}/hathi_index.tsv.gz"), \
+	("FILTERED_INDEX", "", "data/hathi_index_filtered.tsv.gz"), \
+	("FULL_CONTENT", "", "concert_programs.json.gz"), \
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
 # manage the variables (see above) and builders (see below).
-env = Environment(
-    variables=vars,
-    
+env = Environment( \
+	variables=vars,\
     # Defining a bunch of builders (none of these do anything except "touch" their targets,
     # as you can see in the dummy.py script).  Consider in particular the "TrainModel" builder,
     # which interpolates two variables beyond the standard SOURCES/TARGETS: PARAMETER_VALUE
     # and MODEL_TYPE.  When we invoke the TrainModel builder (see below), we'll need to pass
     # in values for these (note that e.g. the existence of a MODEL_TYPES variable above doesn't
     # automatically populate MODEL_TYPE, we'll do this with for-loops).
-    BUILDERS={
-        "FilterIndex" : Builder(
-            action="python scripts/filter_hathi_index.py --hathitrust_index ${SOURCES[0]} --output ${TARGETS[0]}"
-        ),
-        "PopulateFromIndex" : Builder(
-            action="python scripts/populate_from_index.py --hathitrust_root ${SOURCES[0]} --input ${SOURCES[1]} --output ${TARGETS[0]}"
-        ),
-        "TrainModel" : Builder(
-            action="python scripts/train_model.py --parameter_value ${PARAMETER_VALUE} --model_type ${MODEL_TYPE} --train ${SOURCES[0]} --dev ${SOURCES[1]} --outputs ${TARGETS[0]}"            
-        ),
-        "ApplyModel" : Builder(
-            action="python scripts/apply_model.py --model ${SOURCES[0]} --test ${SOURCES[1]} --outputs ${TARGETS[0]}"
-        ),
-        "GenerateReport" : Builder(
-            action="python scripts/generate_report.py --experimental_results ${SOURCES} --outputs ${TARGETS[0]}"
-        )
-    }
-)
+    	BUILDERS={ \
+        	"FilterIndex" : Builder(action="python scripts/filter_hathi_index.py --hathitrust_index ${HATHITRUST_INDEX} --output ${FILTERED_INDEX}"), \
+        	"PopulateFromIndex" : Builder( \
+		action="python scripts/populate_from_index.py --hathitrust_root ${HATHITRUST_ROOT} --input ${FILTERED_INDEX} --output ${FULL_CONTENT}" \
+		} \
+	)
 
 # At this point we have defined all the builders and variables, so it's
 # time to specify the actual experimental process, which will involve
@@ -82,6 +65,11 @@ env = Environment(
 # ("sources") to later ones, and how some outputs are also gathered into the "results"
 # variable, so they can be summarized together after each experiment runs.
 
+
+env.FilterIndex([], [])
+env.PopulateFromIndex([], [])
+
+'''
 results = []
 for dataset_name, dataset_file in env["DATASETS"].items():
     data = env.PreprocessData("work/${DATASET_NAME}/data.txt", dataset_file, DATASET_NAME=dataset_name)
@@ -126,12 +114,16 @@ for dataset_name, dataset_file in env["DATASETS"].items():
                         STEAMROLLER_ACCOUNT=env["CPU_ACCOUNT"]
                     )
                 )
+'''
+
 
 # Use the list of applied model outputs to generate an evaluation report (table, plot,
 # f-score, confusion matrix, whatever makes sense).
+'''
 report = env.GenerateReport(
     "work/report.txt",
     results,
     STEAMROLLER_QUEUE=env["CPU_QUEUE"],
     STEAMROLLER_ACCOUNT=env["CPU_ACCOUNT"]
 )
+'''
