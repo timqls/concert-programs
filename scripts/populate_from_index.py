@@ -1,5 +1,3 @@
-# much of this code is borrowed from the russian semantics project populate_hathitrust.py script:
-# see https://github.com/comp-int-hum/russian-semantics/blob/main/scripts/populate_hathitrust.py
 
 import logging
 import gzip
