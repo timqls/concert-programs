@@ -16,7 +16,7 @@ def split_doc(tokens, max_len):
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--input", dest="input", help="Input file") # concert_programs.json.gz
-	parser.add_argument("--max_subdoc_len", dest="max_subdoc_len", type=int, defualt=200,\
+	parser.add_argument("--max_subdoc_len", dest="max_subdoc_len", type=int, default=200,\
 		help="Documents will be split into subdocuments of at most this number of tokens")
 	parser.add_argument('--train_proportion', type=float, default=0.7, help='')
 	#parser.add_argument("--output_directory", dest="output_directory", help="Directory for output files") # concert_programs_split
@@ -36,8 +36,12 @@ if __name__ == "__main__":
 			unique_times.add(time)
 
 			title = j["title"]
-			author = j["author"]
-			publisher = j["publisher"]
+			#print("time: " + str(time) + ", title: " + title + ", pub: " + publisher)
+			author = j.get("author", "")
+			publisher = j.get("publisher", "")
+
+			#print("time: " + str(time) + ", title: " + title + ", pub: " + publisher + ", " + "author: " + author + ", " + j["htid"])
+
 			full_text_words = j["content"].split()
 
 			for subdoc_num, subdoc in enumerate(split_doc(full_text_words, args.max_subdoc_len)):
@@ -64,6 +68,13 @@ if __name__ == "__main__":
 		# training/validation split
 		data["train"] = all_subdocs[:num_training]
 		data["val"] = all_subdocs[num_training:]
+
+		with gzip.open(os.path.expanduser("~/corpora/concert_programs_split_train.json.gz"), "wt") as ofd_train:
+			for line in data["train"]:
+				ofd_train.write(json.dumps(line) + "\n")
+		with gzip.open(os.path.expanduser("~/corpora/concert_programs_split_val.json.gz"), "wt") as ofd_val:
+			for line in data["val"]:
+				ofd_val.write(json.dumps(line) + "\n")
 
 	'''
 	count = 0
