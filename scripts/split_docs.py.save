@@ -26,7 +26,6 @@ if __name__ == "__main__":
 		help="Words occuring less than this number of times throughout the entire dataset will be ignored")
 	parser.add_argument("--max_word_proportion", dest="max_word_proportion", type=float, default=1.0, \
 		help="Words occurring in more than this proportion of documents will be ignored (probably conjunctions, etc)")
-	parser.add_argument("--window_size", dest="window_size", type=int, default=20, help="")
 	#parser.add_argument("--output_directory", dest="output_directory", help="Directory for output files") # concert_programs_split
 	args = parser.parse_args()
 
@@ -102,19 +101,7 @@ if __name__ == "__main__":
 	max_time = sorted_times[-1] + 1
 	span = max_time - min_time
 
-	curr_min = min_time
-	curr_max = min_time
-
-	# dictionary of window : (number of unique times in window)
-	window_counts = {}
-
-	# dictionary mapping each time to a window
-	time_window_mapping = {}
-
-	for i in range(math.ceil(span / args.window_size)):
-		curr_max += args.window_size
-		while j < (sorted_times) and sorted_times[j] < curr_max_time:
-			pass
+	
 
 	'''
 	count = 0
