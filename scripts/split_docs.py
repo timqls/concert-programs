@@ -30,10 +30,13 @@ if __name__ == "__main__":
 	#parser.add_argument("--output_directory", dest="output_directory", help="Directory for output files") # concert_programs_split
 	args = parser.parse_args()
 
+	logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+
 	unique_times = set()
 	total_subdocs = 0
 	token_subdoc_count = {}
 	data = {}
+	token_id_mapping = {}
 
 	with gzip.open(os.path.expanduser("~/corpora/" + args.input), "rt") as ifd:
 		all_subdocs = []
@@ -111,10 +114,42 @@ if __name__ == "__main__":
 	# dictionary mapping each time to a window
 	time_window_mapping = {}
 
+	j = 0
 	for i in range(math.ceil(span / args.window_size)):
 		curr_max += args.window_size
-		while j < (sorted_times) and sorted_times[j] < curr_max_time:
-			pass
+		print((curr_min, curr_max))
+		while j < len(sorted_times) and sorted_times[j] < curr_max:
+			time_window_mapping[sorted_times[j]] = i
+			j += 1
+			window_counts[i] = window_counts.get(i, 0) + 1
+		curr_min = curr_max
+
+	logger.info("Found %d sub-docs, min time = %d, max time = %d, window count = %d", \
+		sum([len(v) for v in data.values()]), min_time, max_time, len(window_counts))
+
+	# dict of lists (1 for train, 1 for val) of subdocs including counts for each token
+	subdoc_counts = {}
+	# dict of dicts (1 dict for train, 1 for val) of window : (num subdocs in window)
+	window_counts = {}
+
+	for name, vs in data.items():
+		subdoc_counts[name] = []
+		window_counts[name] = {}
+		for subdoc in data[name]:
+			window = time_window_mapping[subdoc["time"]]
+			# dict of counts for each token in subdoc
+			subdoc["counts"] = {}
+			subdoc["window"] = window
+			for t in subdoc["tokens"]:
+				if t in vocab_kept:
+					tid = token_id_mapping.setdefault(t, len(token_id_mapping))
+					# update counts for given token
+					subdoc["counts"][tid] = subdoc["counts"].get(tid, 0) + 1
+			if len(subdoc["counts"]) > 0:
+				subdoc_counts[name].append(subdoc)
+				window_counts[name][window] = window_counts[name].get(window, 0) + 1
+
+
 
 	'''
 	count = 0
