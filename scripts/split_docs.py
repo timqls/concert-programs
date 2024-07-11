@@ -22,6 +22,77 @@ def split_doc(tokens, max_len):
 		subdocs.append(tokens[i * max_len : (i + 1) * max_len])
 	return subdocs
 
+def get_theta(model, eta, bows):
+	model.eval()
+	with torch.no_grad():
+		inp = torch.cat([bows, eta], dim=1)
+		q_theta = model.q_theta(inp)
+		mu_theta = model.mu_q_theta(q_theta)
+		theta = torch.nn.functional.softmax(mu_theta, dim=-1)
+		return theta
+
+def _eta_helper(rnn_inp, device):
+	inp = model.q_eta_map(rnn_inp).unsqueeze(1)
+	hidden = model.init_hidden()
+	output, _ = model.q_eta(inp, hidden)
+	output = output.squeeze()
+	etas = torch.zeros(model.num_times, model.num_topics).to(device)
+	inp_0 = torch.cat([output[0], torch.zeros(model.num_topics,).to(device)], dim=0)
+	etas[0] = model.mu_q_eta(inp_0)
+	for t in range(1, model.num_times):
+		inp_t = torch.cat([output[t], etas[t-1]], dim=0)
+		etas[t] = model.mu_q_eta(inp_t)
+	return etas
+
+
+def get_eta(model, rnn_inp, device):
+	model.eval()
+	with torch.no_grad():
+		return _eta_helper(rnn_inp, device)
+
+def get_completion_ppl(model, val_subdocs, val_rnn_inp, id2token, device):
+	"""Returns document completion perplexity.
+	"""
+
+	model.eval()
+	with torch.no_grad():
+		alpha = model.mu_q_alpha
+		acc_loss = 0.0
+		cnt = 0
+		val_batch_size = 1000
+		eta = get_eta(model, val_rnn_inp, device)
+		indices = torch.split(torch.tensor(range(len(val_subdocs))), val_batch_size)
+		for idx, ind in enumerate(indices):
+			batch_size = len(ind)
+			data_batch = np.zeros((batch_size, len(id2token)))
+			times_batch = np.zeros((batch_size, ))
+			for i, doc_id in enumerate(ind):
+				subdoc = val_subdocs[doc_id]
+				times_batch[i] = subdoc["window"] #timestamp
+				for k, v in subdoc["counts"].items():
+					data_batch[i, k] = v
+			data_batch = torch.from_numpy(data_batch).float().to(args.device)
+			times_batch = torch.from_numpy(times_batch).to(args.device)
+
+			sums = data_batch.sum(1).unsqueeze(1)
+			normalized_data_batch = data_batch / sums
+
+			eta_td = eta[times_batch.type('torch.LongTensor')]
+			theta = get_theta(model, eta_td, normalized_data_batch)
+			alpha_td = alpha[:, times_batch.type('torch.LongTensor'), :]
+			beta = model.get_beta(alpha_td).permute(1, 0, 2)
+			loglik = theta.unsqueeze(2) * beta
+			loglik = loglik.sum(1)
+			loglik = torch.log(loglik)
+			nll = -loglik * data_batch
+			nll = nll.sum(-1)
+			loss = nll / sums.squeeze()
+			loss = loss.mean().item()
+			acc_loss += loss
+			cnt += 1
+		cur_loss = acc_loss / cnt
+		ppl_all = round(math.exp(cur_loss), 1)
+	return ppl_all
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
@@ -36,6 +107,33 @@ if __name__ == "__main__":
 	parser.add_argument("--window_size", dest="window_size", type=int, default=20, help="")
 	parser.add_argument("--embeddings", dest="embeddings", help="Embeddings file")
 	#parser.add_argument("--output_directory", dest="output_directory", help="Directory for output files") # concert_programs_split
+
+	arser.add_argument("--top_words", dest="top_words", type=int, default=10, help="Number of words to show for each topic in the summary file")
+	parser.add_argument("--epochs", dest="epochs", type=int, default=400, help="How long to train")
+	parser.add_argument("--random_seed", dest="random_seed", type=int, default=None, help="Specify a random seed (for repeatability)")
+
+	parser.add_argument('--num_words', type=int, default=20, help='number of words for topic viz')
+	parser.add_argument('--log_interval', type=int, default=10, help='when to log training')
+	parser.add_argument('--visualize_every', type=int, default=1, help='when to visualize results')
+	parser.add_argument('--eval_batch_size', type=int, default=1000, help='input batch size for evaluation')
+	parser.add_argument('--load_from', type=str, default='', help='the name of the ckpt to eval from')
+	parser.add_argument('--tc', type=int, default=0, help='whether to compute tc or not')
+
+	parser.add_argument('--learning_rate', dest="learning_rate", type=float, default=0.0001, help='learning rate')
+	parser.add_argument('--lr_factor', type=float, default=2.0, help='divide learning rate by this')
+	parser.add_argument('--mode', type=str, default='train', help='train or eval model')
+	parser.add_argument('--device') #, choices=["cpu", "cuda"], help='')
+	parser.add_argument('--optimizer', type=str, default='adam', help='choice of optimizer')
+	parser.add_argument('--seed', type=int, default=2019, help='random seed (default: 1)')
+	parser.add_argument('--enc_drop', type=float, default=0.0, help='dropout rate on encoder')
+	parser.add_argument('--eta_dropout', type=float, default=0.0, help='dropout rate on rnn for eta')
+	parser.add_argument('--clip', type=float, default=2.0, help='gradient clipping')
+	parser.add_argument('--nonmono', type=int, default=10, help='number of bad hits allowed')
+	parser.add_argument('--wdecay', type=float, default=1.2e-6, help='some l2 regularization')
+	parser.add_argument('--anneal_lr', type=int, default=0, help='whether to anneal the learning rate or not')
+	sparser.add_argument('--bow_norm', type=int, default=1, help='normalize the bows or not')
+
+
 
 	#parser.add_argument('--limit_docs', type=int, help='')
 	parser.add_argument('--batch_size', type=int, default=100, help='')
