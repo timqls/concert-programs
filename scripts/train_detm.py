@@ -155,6 +155,19 @@ if __name__ == "__main__":
 
 	logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
+
+	if args.random_seed:
+		random.seed(args.random_seed)
+		np.random.seed(args.seed)
+		torch.backends.cudnn.deterministic = True
+		torch.manual_seed(args.seed)
+
+	if not args.device:
+		args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+	elif args.device == "cuda" and not torch.cuda.is_available():
+		logger.warning("Setting device to CPU because CUDA isn't available")
+		args.device = "cpu"
+
 	unique_times = set()
 	total_subdocs = 0
 	token_subdoc_count = {}
@@ -289,7 +302,7 @@ if __name__ == "__main__":
 	if args.embeddings:
         	if args.embeddings.endswith("txt"):
 			wv = {}
-			with open(args.embeddings, "rt") as ifd:
+			with open(os.path.expanduser(""~/corpora/" + args.embeddings), "rt") as ifd:
 				for line in ifd:
 					toks = line.split()
 					wv[toks[0]] = list(map(float, toks[1:]))
