@@ -5,6 +5,13 @@ import argparse
 import math
 import random
 import logging
+from gensim.models import Word2Vec
+from gensim.models import KeyedVectors
+import numpy as np
+import numpy
+import torch
+import copy
+from detm import DETM
 
 logger = logging.getLogger("split_docs")
 
@@ -27,7 +34,25 @@ if __name__ == "__main__":
 	parser.add_argument("--max_word_proportion", dest="max_word_proportion", type=float, default=1.0, \
 		help="Words occurring in more than this proportion of documents will be ignored (probably conjunctions, etc)")
 	parser.add_argument("--window_size", dest="window_size", type=int, default=20, help="")
+	parser.add_argument("--embeddings", dest="embeddings", help="Embeddings file")
 	#parser.add_argument("--output_directory", dest="output_directory", help="Directory for output files") # concert_programs_split
+
+	#parser.add_argument('--limit_docs', type=int, help='')
+	parser.add_argument('--batch_size', type=int, default=100, help='')
+	parser.add_argument('--num_topics', type=int, default=50, help='number of topics')
+	parser.add_argument('--rho_size', type=int, default=300, help='dimension of rho')
+	parser.add_argument('--emb_size', type=int, default=300, help='dimension of embeddings')
+	parser.add_argument('--t_hidden_size', type=int, default=800, help='dimension of hidden space of q(theta)')
+	parser.add_argument('--theta_act', type=str, default='relu', help='tanh, softplus, relu, rrelu, leakyrelu, elu, selu, glu)')
+	parser.add_argument('--train_embeddings', default=False, action="store_true", help='whether to fix rho or train it')
+	parser.add_argument('--eta_nlayers', type=int, default=3, help='number of layers for eta')
+	parser.add_argument('--eta_hidden_size', type=int, default=200, help='number of hidden units for rnn')
+	parser.add_argument('--delta', type=float, default=0.005, help='prior variance')
+	parser.add_argument('--train_proportion', type=float, default=0.7, help='')
+	parser.add_argument("--min_time", type=int, default=0)
+	parser.add_argument("--max_time", type=int, default=0)
+
+
 	args = parser.parse_args()
 
 	logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -149,25 +174,179 @@ if __name__ == "__main__":
 				subdoc_counts[name].append(subdoc)
 				window_counts[name][window] = window_counts[name].get(window, 0) + 1
 
+	# keep only windows present in both training and validation
+	windows_kept = set([w for w in window_counts["train"].keys() if all([w in v for v in window_counts.values()])])
 
+	window_transform = {w : i for i, w in enumerate(sorted(windows_kept))}
 
-	'''
-	count = 0
-	with gzip.open(os.path.expanduser("~/corpora/" + args.input), "rt") as ifd:
-		for doc in ifd:
-			count += 1
-			if count == 5:
-				break
-			j = json.loads(doc)
-			htid = j["htid"]
-			content = j["content"]
-			text_splitter = SpacyTextSplitter(chunk_size = 1500)
-			splits = text_splitter.split_text(content)
-			subdir = os.path.join(output_dir, htid)
-			if not os.path.exists(subdir):
-				os.mkdir(subdir)
+	for name in list(subdoc_counts.keys()):
+		# list of dicts for each subdoc in subdoc_counts
+		subdoc_counts[name] = [dict([(k, v) for k, v in s.items() if k != "window"] +\
+			[("window", window_transform[s["window"]])]) for s in subdoc_counts[name] if s["window"] in windows_to_keep]
+		window_counts[name] = {window_transform[k] : v for k, v in window_counts[name].items() if k in windows_to_keep}
 
-			for i in range(len(splits)):
-				with open(os.path.join(subdir, htid + "_" + str(i+1) + ".txt"), "w") as ofd:
-					ofd.write(splits[i])
-	'''
+	# dict mapping id to token
+	id2token = {v : k for k, v in token_id_mapping.items()}
+
+	if args.embeddings:
+        	if args.embeddings.endswith("txt"):
+			wv = {}
+			with open(args.embeddings, "rt") as ifd:
+				for line in ifd:
+					toks = line.split()
+					wv[toks[0]] = list(map(float, toks[1:]))
+			embeddings = torch.tensor([wv[id2token[i]] for i in range(len(id2token))])
+
+		else:
+			w2v = Word2Vec.load(args.embeddings)
+
+			test_model = KeyedVectors.load(args.embeddings)
+
+			words = list(test_model.wv.key_to_index.keys())
+
+			embeddings = torch.tensor(numpy.array([w2v.wv[id2token[i]] for i in range(len(id2token))]))
+
+	args.embeddings_dim = embeddings.size()
+	args.num_times = len(window_counts["train"])
+ 	args.vocab_size = len(id2token)
+	args.train_embeddings = 0
+
+	model = DETM( \
+		args, \
+		id2token, \
+		min_time, \
+		num_topics=args.num_topics, \
+		windows=window_counts["train"], \
+		embeddings=embeddings, \
+		t_hidden_size=args.t_hidden_size, \
+		eta_hidden_size=args.eta_hidden_size, \
+		eta_drop=args.eta_dropout, \
+		rho_size=args.rho_size, \
+		emb_size=args.emb_size, \
+		enc_drop=args.enc_drop, \
+		eta_nlayers=args.eta_nlayers, \
+		delta=args.delta, \
+		theta_act=args.theta_act, \
+		device=args.device, \
+		adapt_embeddings=False \
+		)
+
+	print("initialized model")
+	model.to(args.device)
+	optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.wdecay)
+
+	rnn_input = {}
+	for name in ["train", "val"]:
+		indices = torch.arange(0, len(subdoc_counts[name]), dtype=torch.int)
+		indices = torch.split(indices, args.batch_size) 
+		rnn_input[name] = torch.zeros(len(window_counts["train"]), len(id2token)).to(args.device)
+		cnt = torch.zeros(len(window_counts["train"]), ).to(args.device)
+		for idx, ind in enumerate(indices):
+			batch_size = len(ind)
+			data_batch = np.zeros((batch_size, len(id2token)))
+			times_batch = np.zeros((batch_size, ))
+			for i, doc_id in enumerate(ind):
+				subdoc = subdoc_counts[name][doc_id]
+				times_batch[i] = subdoc["window"] #timestamp
+				for k, v in subdoc["counts"].items():
+					data_batch[i, k] = v
+			data_batch = torch.from_numpy(data_batch).float().to(args.device)
+			times_batch = torch.from_numpy(times_batch).to(args.device)
+			for t in range(len(window_counts["train"])):
+				tmp = (times_batch == t).nonzero()
+				docs = data_batch[tmp].squeeze().sum(0)
+				rnn_input[name][t] += docs
+				cnt[t] += len(tmp)
+		rnn_input[name] = rnn_input[name] / cnt.unsqueeze(1)
+
+	best_state = None
+	best_val_ppl = None
+	since_annealing = 0
+	since_improvement = 0
+	for epoch in range(1, args.epochs + 1):
+		logger.info("Starting epoch %d", epoch)
+		model.train()
+		acc_loss = 0
+		acc_nll = 0
+		acc_kl_theta_loss = 0
+		acc_kl_eta_loss = 0
+		acc_kl_alpha_loss = 0
+		cnt = 0
+		indices = torch.randperm(len(subdoc_counts["train"]))
+		indices = torch.split(indices, args.batch_size)
+		for idx, ind in enumerate(indices):
+			optimizer.zero_grad()
+			model.zero_grad()
+			batch_size = len(ind)
+			data_batch = np.zeros((batch_size, len(id2token)))
+			times_batch = np.zeros((batch_size, ))
+			for i, doc_id in enumerate(ind):
+				subdoc = subdoc_counts["train"][doc_id]
+				times_batch[i] = subdoc["window"] #timestamp
+				for k, v in subdoc["counts"].items():
+					data_batch[i, k] = v
+
+			data_batch = torch.from_numpy(data_batch).float().to(args.device)
+			times_batch = torch.from_numpy(times_batch).to(args.device)
+			sums = data_batch.sum(1).unsqueeze(1)
+			normalized_data_batch = data_batch / sums
+			loss, nll, kl_alpha, kl_eta, kl_theta = model( \
+				data_batch, \
+				normalized_data_batch, \
+				times_batch, \
+				rnn_input["train"], \
+				len(subdoc_counts["train"]) )
+
+			if not torch.any(torch.isnan(loss)):
+				loss.backward()
+				if args.clip > 0:
+					torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+				optimizer.step()
+
+				acc_loss += torch.sum(loss).item()
+				acc_nll += torch.sum(nll).item()
+				acc_kl_theta_loss += torch.sum(kl_theta).item()
+				acc_kl_eta_loss += torch.sum(kl_eta).item()
+				acc_kl_alpha_loss += torch.sum(kl_alpha).item()
+			cnt += 1
+
+		cur_loss = round(acc_loss / cnt, 2) 
+		cur_nll = round(acc_nll / cnt, 2) 
+		cur_kl_theta = round(acc_kl_theta_loss / cnt, 2) 
+		cur_kl_eta = round(acc_kl_eta_loss / cnt, 2) 
+		cur_kl_alpha = round(acc_kl_alpha_loss / cnt, 2) 
+		lr = optimizer.param_groups[0]['lr']
+		logger.info("Computing perplexity...")
+		val_ppl = get_completion_ppl(model, subdoc_counts["val"], rnn_input["val"], id2token, args.device)
+		logger.info( \
+			'{}: LR: {}, KL_theta: {}, KL_eta: {}, KL_alpha: {}, Rec_loss: {}, NELBO: {}, PPL: {}'.format( \
+			epoch, \
+			lr, \
+			cur_kl_theta, \
+			cur_kl_eta, \
+			cur_kl_alpha, \
+			cur_nll, \
+			cur_loss, \
+			val_ppl \
+            		) \
+        		)
+
+		if best_val_ppl == None or val_ppl < best_val_ppl:
+			logger.info("Copying new best model...")
+			best_val_ppl = val_ppl
+			best_state = copy.deepcopy(model.state_dict())
+			since_improvement = 0
+			logger.info("Copied.")
+		else:
+			since_improvement += 1
+		since_annealing += 1
+		if since_improvement > 5 and since_annealing > 5 and since_improvement < 10:
+			optimizer.param_groups[0]['lr'] /= args.lr_factor
+			model.load_state_dict(best_state)
+			since_annealing = 0
+		elif since_improvement >= 10:
+			break
+
+	model.load_state_dict(best_state)
+	with gzip.open(args.output, "wb") as ofd:
+		torch.save(model, ofd)
