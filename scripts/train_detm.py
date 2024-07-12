@@ -95,11 +95,12 @@ def get_completion_ppl(model, val_subdocs, val_rnn_inp, id2token, device):
 	return ppl_all
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser()
+	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+	#parser.add_argument("--train", dest="train", help="Data file")
+	#parser.add_argument("--val", dest="val", help="Data file")
 	parser.add_argument("--input", dest="input", help="Input file") # concert_programs.json.gz
 	parser.add_argument("--max_subdoc_len", dest="max_subdoc_len", type=int, default=200,\
 		help="Documents will be split into subdocuments of at most this number of tokens")
-	parser.add_argument('--train_proportion', type=float, default=0.7, help='')
 	parser.add_argument("--min_word_occurrence", dest="min_word_occurrence", type=int, default=0, \
 		help="Words occuring less than this number of times throughout the entire dataset will be ignored")
 	parser.add_argument("--max_word_proportion", dest="max_word_proportion", type=float, default=1.0, \
@@ -108,7 +109,7 @@ if __name__ == "__main__":
 	parser.add_argument("--embeddings", dest="embeddings", help="Embeddings file")
 	#parser.add_argument("--output_directory", dest="output_directory", help="Directory for output files") # concert_programs_split
 
-	arser.add_argument("--top_words", dest="top_words", type=int, default=10, help="Number of words to show for each topic in the summary file")
+	parser.add_argument("--top_words", dest="top_words", type=int, default=10, help="Number of words to show for each topic in the summary file")
 	parser.add_argument("--epochs", dest="epochs", type=int, default=400, help="How long to train")
 	parser.add_argument("--random_seed", dest="random_seed", type=int, default=None, help="Specify a random seed (for repeatability)")
 
@@ -131,7 +132,7 @@ if __name__ == "__main__":
 	parser.add_argument('--nonmono', type=int, default=10, help='number of bad hits allowed')
 	parser.add_argument('--wdecay', type=float, default=1.2e-6, help='some l2 regularization')
 	parser.add_argument('--anneal_lr', type=int, default=0, help='whether to anneal the learning rate or not')
-	sparser.add_argument('--bow_norm', type=int, default=1, help='normalize the bows or not')
+	parser.add_argument('--bow_norm', type=int, default=1, help='normalize the bows or not')
 
 
 
@@ -149,6 +150,8 @@ if __name__ == "__main__":
 	parser.add_argument('--train_proportion', type=float, default=0.7, help='')
 	parser.add_argument("--min_time", type=int, default=0)
 	parser.add_argument("--max_time", type=int, default=0)
+	parser.add_argument("--early_stop", type=int, default=20)
+	parser.add_argument("--reduce_rate", type=int, default=5)
 
 
 	args = parser.parse_args()
@@ -174,8 +177,8 @@ if __name__ == "__main__":
 	data = {}
 	token_id_mapping = {}
 
+	all_subdocs = []
 	with gzip.open(os.path.expanduser("~/corpora/" + args.input), "rt") as ifd:
-		all_subdocs = []
 		for doc in ifd:
 			# unload each document (line) into a dictionary
 			j = json.loads(doc)
@@ -238,7 +241,9 @@ if __name__ == "__main__":
 	sorted_times = list(sorted(unique_times))
 
 	min_time = sorted_times[0] - 1
+	#min_time = args.min_time if args.min_time else (sorted_times[0] - 1)
 	max_time = sorted_times[-1] + 1
+	#max_time = args.max_time if args.max_time else (sorted_times[-1] + 1)
 	span = max_time - min_time
 
 	curr_min = min_time
@@ -274,7 +279,7 @@ if __name__ == "__main__":
 		for subdoc in data[name]:
 			window = time_window_mapping[subdoc["time"]]
 			# dict of counts for each token in subdoc
-			subdoc["counts"] = {}
+	  		subdoc["counts"] = {}
 			subdoc["window"] = window
 			for t in subdoc["tokens"]:
 				if t in vocab_kept:
@@ -300,9 +305,9 @@ if __name__ == "__main__":
 	id2token = {v : k for k, v in token_id_mapping.items()}
 
 	if args.embeddings:
-        	if args.embeddings.endswith("txt"):
+		if args.embeddings.endswith("txt"):
 			wv = {}
-			with open(os.path.expanduser(""~/corpora/" + args.embeddings), "rt") as ifd:
+			with open(os.path.expanduser("~/corpora/" + args.embeddings), "rt") as ifd:
 				for line in ifd:
 					toks = line.split()
 					wv[toks[0]] = list(map(float, toks[1:]))
@@ -319,7 +324,7 @@ if __name__ == "__main__":
 
 	args.embeddings_dim = embeddings.size()
 	args.num_times = len(window_counts["train"])
- 	args.vocab_size = len(id2token)
+	args.vocab_size = len(id2token)
 	args.train_embeddings = 0
 
 	model = DETM( \
@@ -451,11 +456,11 @@ if __name__ == "__main__":
 		else:
 			since_improvement += 1
 		since_annealing += 1
-		if since_improvement > 5 and since_annealing > 5 and since_improvement < 10:
+		if since_improvement > args.reduce_rate and since_annealing > args.reduce_rate:
 			optimizer.param_groups[0]['lr'] /= args.lr_factor
 			model.load_state_dict(best_state)
 			since_annealing = 0
-		elif since_improvement >= 10:
+		elif since_improvement >= args.early_stop:
 			break
 
 	model.load_state_dict(best_state)
