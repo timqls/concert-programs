@@ -98,7 +98,7 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	#parser.add_argument("--train", dest="train", help="Data file")
 	#parser.add_argument("--val", dest="val", help="Data file")
-	parser.add_argument("--input", dest="input", help="Input file") # concert_programs.json.gz
+	parser.add_argument("--input", dest="input", help="Input file") # concert_programs_cleaned.json.gz
 	parser.add_argument("--max_subdoc_len", dest="max_subdoc_len", type=int, default=200,\
 		help="Documents will be split into subdocuments of at most this number of tokens")
 	parser.add_argument("--min_word_occurrence", dest="min_word_occurrence", type=int, default=0, \
@@ -107,6 +107,7 @@ if __name__ == "__main__":
 		help="Words occurring in more than this proportion of documents will be ignored (probably conjunctions, etc)")
 	parser.add_argument("--window_size", dest="window_size", type=int, default=20, help="")
 	parser.add_argument("--embeddings", dest="embeddings", help="Embeddings file")
+	parser.add_argument("--output", dest="output", help="File to save model to", required=True)
 	#parser.add_argument("--output_directory", dest="output_directory", help="Directory for output files") # concert_programs_split
 
 	parser.add_argument("--top_words", dest="top_words", type=int, default=10, help="Number of words to show for each topic in the summary file")
@@ -137,7 +138,7 @@ if __name__ == "__main__":
 
 
 	#parser.add_argument('--limit_docs', type=int, help='')
-	parser.add_argument('--batch_size', type=int, default=100, help='')
+	parser.add_argument('--batch_size', type=int, default=8, help='') # originally = 100
 	parser.add_argument('--num_topics', type=int, default=50, help='number of topics')
 	parser.add_argument('--rho_size', type=int, default=300, help='dimension of rho')
 	parser.add_argument('--emb_size', type=int, default=300, help='dimension of embeddings')
@@ -279,7 +280,7 @@ if __name__ == "__main__":
 		for subdoc in data[name]:
 			window = time_window_mapping[subdoc["time"]]
 			# dict of counts for each token in subdoc
-	  		subdoc["counts"] = {}
+			subdoc["counts"] = {}
 			subdoc["window"] = window
 			for t in subdoc["tokens"]:
 				if t in vocab_kept:
@@ -298,8 +299,8 @@ if __name__ == "__main__":
 	for name in list(subdoc_counts.keys()):
 		# list of dicts for each subdoc in subdoc_counts
 		subdoc_counts[name] = [dict([(k, v) for k, v in s.items() if k != "window"] +\
-			[("window", window_transform[s["window"]])]) for s in subdoc_counts[name] if s["window"] in windows_to_keep]
-		window_counts[name] = {window_transform[k] : v for k, v in window_counts[name].items() if k in windows_to_keep}
+			[("window", window_transform[s["window"]])]) for s in subdoc_counts[name] if s["window"] in windows_kept]
+		window_counts[name] = {window_transform[k] : v for k, v in window_counts[name].items() if k in windows_kept}
 
 	# dict mapping id to token
 	id2token = {v : k for k, v in token_id_mapping.items()}
@@ -307,7 +308,7 @@ if __name__ == "__main__":
 	if args.embeddings:
 		if args.embeddings.endswith("txt"):
 			wv = {}
-			with open(os.path.expanduser("~/corpora/" + args.embeddings), "rt") as ifd:
+			with open(args.embeddings, "rt") as ifd:
 				for line in ifd:
 					toks = line.split()
 					wv[toks[0]] = list(map(float, toks[1:]))

@@ -1,5 +1,7 @@
 custom.py
 work
+scripts/train_detm_copy.py
+scripts/detm_copy.py
 local
 .sconsign.dblite
 *~
