@@ -15,6 +15,10 @@ from detm import DETM
 
 logger = logging.getLogger("split_docs")
 
+## current
+## python scripts/train_detm.py --input concert_programs_cleaned.json.gz --min_word_occurrence 10 --max_word_proportion 0.7 --embeddings work/word_2_vec_embeddings.bin --output work/detm_model_test
+
+
 def split_doc(tokens, max_len):
 	num_subdocs = math.ceil(len(tokens) / max_len)
 	subdocs = []
@@ -159,6 +163,9 @@ if __name__ == "__main__":
 
 	logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
+	#print("num topics: " + str(args.num_topics))
+	#print("batch size" : str(args.batch_size))
+	
 
 	if args.random_seed:
 		random.seed(args.random_seed)
@@ -239,6 +246,9 @@ if __name__ == "__main__":
 
 	logger.info("keeping %d words from a vocabulary of %d", len(vocab_kept), len(token_subdoc_count))
 
+	#print("vocab size: " + str(len(vocab_kept)))
+
+
 	sorted_times = list(sorted(unique_times))
 
 	min_time = sorted_times[0] - 1
@@ -268,6 +278,15 @@ if __name__ == "__main__":
 
 	logger.info("Found %d sub-docs, min time = %d, max time = %d, window count = %d", \
 		sum([len(v) for v in data.values()]), min_time, max_time, len(window_counts))
+
+
+	print("\n\n\n\n###############")
+	print("num topics: " + str(args.num_topics))
+	print("batch size" : str(args.batch_size))
+	print("vocab size: " + str(len(vocab_kept)))
+	print("num windows: " + str(len(window_counts)))
+	print("###############\n\n\n\n")
+
 
 	# dict of lists (1 for train, 1 for val) of subdocs including counts for each token
 	subdoc_counts = {}
