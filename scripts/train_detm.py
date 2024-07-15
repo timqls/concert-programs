@@ -282,7 +282,7 @@ if __name__ == "__main__":
 
 	print("\n\n\n\n###############")
 	print("num topics: " + str(args.num_topics))
-	print("batch size" : str(args.batch_size))
+	print("batch size: " + str(args.batch_size))
 	print("vocab size: " + str(len(vocab_kept)))
 	print("num windows: " + str(len(window_counts)))
 	print("###############\n\n\n\n")
