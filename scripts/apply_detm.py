@@ -186,3 +186,26 @@ if __name__ == "__main__":
         with gzip.open(args.output, "wt") as ofd:
             for sd in all_subdocs:
                 ofd.write(json.dumps(sd) + "\n")
+
+
+	## visualize
+
+        model.eval()
+        with torch.no_grad():
+            alpha = model.mu_q_alpha
+            beta = model.get_beta(alpha) 
+            print('beta: ', beta.size())
+            print('\n')
+            print('#'*100)
+            print('Visualize topics...')
+            times = range(5)
+            topics_words = []
+            #print(beta.shape)
+            for k in range(beta.shape[0]):
+                for t in times:
+                    gamma = beta[k, t, :]
+                    print(gamma.shape)
+                    top_words = list(gamma.cpu().numpy().argsort()[-beta.shape[0]+1:][::-1])
+                    topic_words = [model.id2token[a] for a in top_words]
+                    topics_words.append(' '.join(topic_words))
+                    print('Topic {} .. Time: {} ===> {}'.format(k, t, topic_words)) 

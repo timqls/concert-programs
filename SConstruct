@@ -22,11 +22,14 @@ from steamroller import Environment
 # the "custom.py" file and then used when a build rule (like "env.TrainModel") is invoked.
 # Adding some indirection like this allows us finer-grained control using "custom.py",
 # i.e. without having to directly edit this file.
+
+filtered_index_list = ["data/hathi_index_filtered.tsv.gz", "data/hathi_index_filtered_more.tsv.gz"]
+
 vars = Variables("custom.py")
 vars.AddVariables(\
 	("HATHITRUST_ROOT", "", "hathi_trust"), \
 	("HATHITRUST_INDEX", "", "${HATHITRUST_ROOT}/hathi_index.tsv.gz"), \
-	("FILTERED_INDEX", "", "data/hathi_index_filtered.tsv.gz"), \
+	("FILTERED_INDEX", "", filtered_index_list[0]), \
 	("FULL_CONTENT", "", "concert_programs.json.gz"), \
 )
 
@@ -45,6 +48,7 @@ env = Environment( \
 		"PopulateFromIndex" : Builder( \
 		action="python scripts/populate_from_index.py --hathitrust_root ${HATHITRUST_ROOT} --input ${FILTERED_INDEX} --output ${FULL_CONTENT}") \
 		} \
+		
 	)
 
 # At this point we have defined all the builders and variables, so it's
