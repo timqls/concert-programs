@@ -63,6 +63,8 @@ class DETM(torch.nn.Module):
             rho.weight.data = embeddings
             self.rho = rho.weight.data.clone().float().to(self.device)
 
+        self.id2token = id2token
+
         ## define the variational parameters for the topic embeddings over time (alpha) ... alpha is K x T x L
         self.mu_q_alpha = nn.Parameter(torch.randn(args.num_topics, args.num_times, args.rho_size))
         self.logsigma_q_alpha = nn.Parameter(torch.randn(args.num_topics, args.num_times, args.rho_size))

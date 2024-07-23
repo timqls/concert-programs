@@ -16,7 +16,8 @@ from detm import DETM
 logger = logging.getLogger("split_docs")
 
 ## current
-## python scripts/train_detm.py --input concert_programs_cleaned.json.gz --min_word_occurrence 10 --max_word_proportion 0.7 --embeddings work/word_2_vec_embeddings.bin --output work/detm_model_test
+## python scripts/train_detm.py --input concert_programs_cleaned.json.gz --min_word_occurrence 10 --max_word_proportion 0.7 \
+## --embeddings work/word_2_vec_embeddings.bin --output work/detm_model_test
 
 
 def split_doc(tokens, max_len):
@@ -109,7 +110,7 @@ if __name__ == "__main__":
 		help="Words occuring less than this number of times throughout the entire dataset will be ignored")
 	parser.add_argument("--max_word_proportion", dest="max_word_proportion", type=float, default=1.0, \
 		help="Words occurring in more than this proportion of documents will be ignored (probably conjunctions, etc)")
-	parser.add_argument("--window_size", dest="window_size", type=int, default=20, help="")
+	parser.add_argument("--window_size", dest="window_size", type=int, default=30, help="")
 	parser.add_argument("--embeddings", dest="embeddings", help="Embeddings file")
 	parser.add_argument("--output", dest="output", help="File to save model to", required=True)
 	#parser.add_argument("--output_directory", dest="output_directory", help="Directory for output files") # concert_programs_split
@@ -142,7 +143,7 @@ if __name__ == "__main__":
 
 
 	#parser.add_argument('--limit_docs', type=int, help='')
-	parser.add_argument('--batch_size', type=int, default=8, help='') # originally = 100
+	parser.add_argument('--batch_size', type=int, default=200, help='') # originally = 100
 	parser.add_argument('--num_topics', type=int, default=50, help='number of topics')
 	parser.add_argument('--rho_size', type=int, default=300, help='dimension of rho')
 	parser.add_argument('--emb_size', type=int, default=300, help='dimension of embeddings')
@@ -225,6 +226,8 @@ if __name__ == "__main__":
 					}
 				all_subdocs.append(local_dict)
 
+
+
 		random.shuffle(all_subdocs)
 		num_training = math.ceil(args.train_proportion * len(all_subdocs))
 
@@ -239,9 +242,31 @@ if __name__ == "__main__":
 			for line in data["val"]:
 				ofd_val.write(json.dumps(line) + "\n")
 
+	## read file of stop words and load to list
+	with open("scripts/stops.txt", "r") as ifd:
+		stops = ifd.read().split("\n")
+
+
 	vocab_kept = set()
+
+	## some tests
+	print("mahler count: " + str(token_subdoc_count["mahler"]))
+	print("bach count: " + str(token_subdoc_count["bach"]))
+	print("brahms count: " + str(token_subdoc_count["brahms"]))
+	print("barber count: " + str(token_subdoc_count["barber"]))
+	print("coleridge count: " + str(token_subdoc_count["coleridge"]))
+	print("coleridgetaylor count: " + str(token_subdoc_count["coleridgetaylor"]))
+	print("ligeti count: " + str(token_subdoc_count["ligeti"]))
+	print("messiaen count: " + str(token_subdoc_count["messiaen"]))
+	print("from count: " + str(token_subdoc_count["from"]))
+	print("boston count: " + str(token_subdoc_count["boston"]))
+	print("violin count: " + str(token_subdoc_count["violin"]))
+
+
+	print("total subdocs: " + str(total_subdocs))
+
 	for t, count in token_subdoc_count.items():
-		if count >= args.min_word_occurrence and (count / total_subdocs) <= args.max_word_proportion:
+		if count >= args.min_word_occurrence and (count / total_subdocs) <= args.max_word_proportion and t not in stops:
 			vocab_kept.add(t)
 
 	logger.info("keeping %d words from a vocabulary of %d", len(vocab_kept), len(token_subdoc_count))
