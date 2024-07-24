@@ -89,7 +89,7 @@ if __name__ == "__main__":
     all_subdocs = []
     model.eval()
     with torch.no_grad():
-        with gzip.open(os.path.expanduser("~/corpora/" + args.input), "rt") as ifd:
+        with gzip.open(args.input, "rt") as ifd:
             for line in ifd:
 
                 j = json.loads(line)

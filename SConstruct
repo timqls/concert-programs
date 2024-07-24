@@ -27,51 +27,93 @@ filtered_index_list = ["data/hathi_index_filtered.tsv.gz", "data/hathi_index_fil
 
 vars = Variables("custom.py")
 vars.AddVariables(\
-	("HATHITRUST_ROOT", "", "hathi_trust"), \
+	("HATHITRUST_ROOT", "", os.path.expanduser("~/corpora/hathi_trust")), \
 	("HATHITRUST_INDEX", "", "${HATHITRUST_ROOT}/hathi_index.tsv.gz"), \
 	("FILTERED_INDEX", "", filtered_index_list[0]), \
-	("FULL_CONTENT", "", "concert_programs.json.gz"), \
+	("FULL_CONTENT", "", os.path.expanduser("~/corpora/concert_programs.json.gz")), \
+	("DATA_IS_LOADED", "", True), \
+	("NUMS_OF_TOPICS", "", [5, 10]), \
+	("WINDOW_SIZES", "", [50, 75]), \
+	("MIN_WORD_OCCURRENCE", "", 60), \
+	("MAX_WORD_PROP", "", 0.7), \
+	("MAX_SUBDOC_LENGTHS", "", [50, 200, 400]), \
+	("BATCH_SIZE", "", 1000), \
+	("RANDOM_SEED", "", 1) \
 )
 
 # Methods on the environment object are used all over the place, but it mostly serves to
 # manage the variables (see above) and builders (see below).
 env = Environment( \
 	variables=vars,\
-    # Defining a bunch of builders (none of these do anything except "touch" their targets,
-    # as you can see in the dummy.py script).  Consider in particular the "TrainModel" builder,
-    # which interpolates two variables beyond the standard SOURCES/TARGETS: PARAMETER_VALUE
-    # and MODEL_TYPE.  When we invoke the TrainModel builder (see below), we'll need to pass
-    # in values for these (note that e.g. the existence of a MODEL_TYPES variable above doesn't
-    # automatically populate MODEL_TYPE, we'll do this with for-loops).
+	ENV = os.environ,
+	tools = []
 	BUILDERS={ \
-		"FilterIndex" : Builder(action="python scripts/filter_hathi_index.py --hathitrust_index ${HATHITRUST_INDEX} --output ${FILTERED_INDEX}"), \
+		"FilterIndex" : Builder( \
+			action="python scripts/filter_hathi_index.py --hathitrust_index ${SOURCES[0]} --output ${TARGETS[0]}"), \
 		"PopulateFromIndex" : Builder( \
-		action="python scripts/populate_from_index.py --hathitrust_root ${HATHITRUST_ROOT} --input ${FILTERED_INDEX} --output ${FULL_CONTENT}") \
+			action="python scripts/populate_from_index.py --hathitrust_root ${HATHITRUST_ROOT} --input ${SOURCES[0]} --output ${TARGETS[0]}"), \
+		"CleanText" : Builder( \
+			action="python scripts/clean_text.py --input ${SOURCES[0]} --output ${TARGETS[0]}"), \
+		"TrainEmbeddings" : Builder( \
+			action="python scripts/train_embeddings.py --input ${SOURCES[0]} --output ${TARGETS[0]}"), \
+		"GenerateWordSimilarityTable" : Builder( \
+			action="python scripts/generate_word_similarity_table.py --embeddings ${SOURCES[0]} --output ${TARGETS[0]}"), \
+		"TrainDETM" : Builder( \
+			action="python scripts/train_detm.py --input ${SOURCES[0]} --embeddings ${SOURCES[1]} --output ${TARGETS[0]} --max_subdoc_len ${MAX_SUBDOC_LEN} --min_word_occurrence ${MIN_WORD_OCCURRENCE} --max_word_proportion ${MAX_WORD_PROP} --window_size ${WINDOW_SIZE} --random_seed ${RANDOM_SEED} --batch_size ${BATCH_SIZE} --num_topics ${NUM_TOPICS}"), \
+		"ApplyDETM" : Builder( \
+			action="python scripts/apply_detm.py --input ${SOURCES[0]} --model ${SOURCES[1]} --output ${TARGETS[0]} --max_subdoc_length ${MAX_SUBDOC_LEN} --batch_size ${BATCH_SIZE}"), \
+		"CreateMatrices" : Builder( \
+			action="python scripts/create_matrices.py --topic_annotations ${SOURCES[0]} --output ${TARGETS[0]} --window_size ${WINDOW_SIZE}"), \
+		"CreateFigures" : Builder( \
+			action = "python scripts/create_figures.py --input ${SOURCES[0]} --temporal_image ${TARGETS[0]} --latex ${TARGETS[1]}") \
 		} \
-		
 	)
 
-# At this point we have defined all the builders and variables, so it's
-# time to specify the actual experimental process, which will involve
-# running all combinations of datasets, folds, model types, and parameter values,
-# collecting the build artifacts from applying the models to test data in a list.
-#
-# The basic pattern for invoking a build rule is:
-#
-#   "env.Rule(list_of_targets, list_of_sources, VARIABLE1=value, VARIABLE2=value...)"
-#
-# Note how variables can be specified in each invocation, and their values used to fill
-# in the build commands *and* determine output filenames, potentially overriding the global
-# variables at the top of this file.  It's a very flexible system, and there are ways to
-# make it less verbose, but in this case explicit is better than implicit.
-#
-# Note also how the outputs ("targets") from earlier invocation are used as the inputs
-# ("sources") to later ones, and how some outputs are also gathered into the "results"
-# variable, so they can be summarized together after each experiment runs.
+if not env["DATA_IS_LOADED"]:
+	filtered = env.FilterIndex("data/hathi_index_filtered.tsv.gz", env["HATHITRUST_INDEX"])
 
+	full_content_raw = env.PopulateFromIndex(env["FULL_CONTENT"], filtered)
 
-env.FilterIndex([], [])
-env.PopulateFromIndex([], [])
+	full_content_clean = env.CleanText(os.path.expanduser("~/corpora/concert_programs_cleaned.json.gz"), full_content_raw)
+
+	embeddings = env.TrainEmbeddings("work/word_2_vec_embeddings.bin", full_content_clean)
+
+	env.GenerateWordSimilarityTable("work/word_similarity.tex", embeddings)
+else:
+	full_content_clean = os.path.expanduser("~/corpora/concert_programs_cleaned.json.gz")
+
+	embeddings = "work/word_2_vec_embeddings.bin"
+
+for num_topics in env["NUMS_OF_TOPICS"]:
+	for num_windows in env["WINDOW_SIZES"]:
+		for max_subdoc_len in env["MAX_SUBDOC_LENGTHS"]:
+			model = env.TrainDETM( \
+				"work/detm_model_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.bin", \
+				[full_content_clean, embeddings], \
+				NUM_TOPICS = num_topics, \
+				WINDOW_SIZE = num_windows, \
+				MAX_SUBDOC_LEN = max_subdoc_len)
+			labeled = env.ApplyDETM( \
+				"work/results_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.json.gz", \
+				[full_content_clean, model], \
+				NUM_TOPICS = num_topics, \
+				WINDOW_SIZE = num_windows, \
+				MAX_SUBDOC_LEN = max_subdoc_len)
+			matrices = env.CreateMatrices( \
+				"work/matrices_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.pkl.gz", \
+				labeled, \
+				NUM_TOPICS = num_topics, \
+				WINDOW_SIZE = num_windows, \
+				MAX_SUBDOC_LEN = max_subdoc_len)
+
+			figs = env.CreateFigures( \
+				["work/temporal_image_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.png", \
+				"work/tables_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.tex"], \
+				matrices, \
+				NUM_TOPICS = num_topics, \
+				WINDOW_SIZE = num_windows, \
+				MAX_SUBDOC_LEN = max_subdoc_len)
+
 
 '''
 results = []

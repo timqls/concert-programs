@@ -15,7 +15,7 @@ if __name__ == "__main__":
 	parser.add_argument("--embeddings", dest="embeddings", help="W2V embeddings file") # work/word_2_vec_embeddings.bin
 	parser.add_argument("--output", dest="output", help="File to save table") # work/word_similarity.tex
 	parser.add_argument("--top_neighbors", dest="top_neighbors", default=10, type=int, help="How many neighbors to return")
-	parser.add_argument('--target_words', default=[], nargs="*", help='Words to consider') # bach brahms tchaikovsky violin conductor love america
+	parser.add_argument('--target_words', default=["bach", "brahms", "tchaikovsky", "violin", "conductor", "love", "america"], nargs="*", help='Words to consider')
 	args = parser.parse_args()
 
 	logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)

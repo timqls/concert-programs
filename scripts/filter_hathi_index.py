@@ -24,7 +24,7 @@ rx_allow_eng_date = re.compile("^[^\t]*\tallow\t([^\t]*\t){14}"+date_simple+"\t[
 if __name__ == "__main__":
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--hathitrust_index", dest="hathitrust_index", help="HathiTrust index file") # hathi_trust/hathi_index.tsv.gz
+	parser.add_argument("--hathitrust_index", dest="hathitrust_index", help="HathiTrust index file") # ~/corpora/hathi_trust/hathi_index.tsv.gz
 	parser.add_argument("--output", dest="output", help="Output file") # data/hathi_index_filtered.tsv.gz
 	args = parser.parse_args()
 
@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
 	count = 0
 	total = 0
-	with gzip.open(os.path.expanduser("~/corpora/" + args.hathitrust_index), "rt") as f:
+	with gzip.open(args.hathitrust_index, "rt") as f:
 		with gzip.open(args.output, "wt") as filtered:
 			for doc in f:
 				total += 1

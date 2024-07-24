@@ -21,16 +21,16 @@ logger = logging.getLogger("populate_hathitrust")
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--hathitrust_root", dest="hathitrust_root", help="HathiTrust root directory") # hathi_trust/
+	parser.add_argument("--hathitrust_root", dest="hathitrust_root", help="HathiTrust root directory") # ~/corpora/hathi_trust/
 	parser.add_argument("--input", dest="input", help="Input file") # data/hathi_index_filtered.tsv.gz
-	parser.add_argument("--output", dest="output", help="Output file") # concert_programs.json.gz
+	parser.add_argument("--output", dest="output", help="Output file") # ~/corpora/concert_programs.json.gz
 	args = parser.parse_args()
 
 	logging.basicConfig(level=logging.INFO)
 
 	psf = PairtreeStorageFactory()
 
-	with gzip.open(args.input, "rt") as ifd, gzip.open(os.path.expanduser("~/corpora/"+args.output), "wt") as ofd:
+	with gzip.open(args.input, "rt") as ifd, gzip.open(args.output, "wt") as ofd:
 		for i, doc in enumerate(ifd):
 			#if i == 6:
 			#	break
@@ -62,7 +62,7 @@ if __name__ == "__main__":
 			ident = ".".join(id_toks[1:])
 			#print(os.path.join(os.path.expanduser("~/corpora/"+args.hathitrust_root), subcollection))
 			try:
-				store = psf.get_store(store_dir = os.path.join(os.path.expanduser("~/corpora/"+args.hathitrust_root), subcollection))
+				store = psf.get_store(store_dir = os.path.join(args.hathitrust_root, subcollection))
 				obj = store.get_object(ident, create_if_doesnt_exist=False)
 			except Exception as e:
 				logger.error("Could not access HathiTrust document '%s'", htid)
