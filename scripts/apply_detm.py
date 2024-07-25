@@ -67,6 +67,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_subdoc_length", dest="max_subdoc_length", type=int, default=200, help="Documents will be split into subdocuments of at most this number of tokens")
     parser.add_argument('--device') #, choices=["cpu", "cuda"], help='')
     parser.add_argument('--batch_size', type=int, default=100, help='')
+    #parser.add_argument("--")
     args = parser.parse_args()
 
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -198,7 +199,7 @@ if __name__ == "__main__":
             print('\n')
             print('#'*100)
             print('Visualize topics...')
-            times = range(5)
+            times = beta.shape[1]
             topics_words = []
             #print(beta.shape)
             for k in range(beta.shape[0]):

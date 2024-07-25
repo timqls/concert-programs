@@ -36,8 +36,8 @@ vars.AddVariables(\
 	("WINDOW_SIZES", "", [50, 75]), \
 	("MIN_WORD_OCCURRENCE", "", 60), \
 	("MAX_WORD_PROP", "", 0.7), \
-	("MAX_SUBDOC_LENGTHS", "", [50, 200, 400]), \
-	("BATCH_SIZE", "", 1000), \
+	("MAX_SUBDOC_LENGTHS", "", [200, 400]), \
+	("BATCH_SIZE", "", 2000), \
 	("RANDOM_SEED", "", 1) \
 )
 
@@ -46,7 +46,7 @@ vars.AddVariables(\
 env = Environment( \
 	variables=vars,\
 	ENV = os.environ,
-	tools = []
+	tools = [],
 	BUILDERS={ \
 		"FilterIndex" : Builder( \
 			action="python scripts/filter_hathi_index.py --hathitrust_index ${SOURCES[0]} --output ${TARGETS[0]}"), \
@@ -84,21 +84,42 @@ else:
 
 	embeddings = "work/word_2_vec_embeddings.bin"
 
+already_existing = [(10, 200, 75), (10, 400, 50), (10, 400, 75), (10, 50, 50), (5, 200, 50), (5, 200, 75), (5, 400, 50)]
+#model_names = ["work/detm_model_{nt}_{msl}_{ws}.bin".format(nt = model[0], msl = model[1], ws = model[2]) for model in already_existing]
 for num_topics in env["NUMS_OF_TOPICS"]:
 	for num_windows in env["WINDOW_SIZES"]:
 		for max_subdoc_len in env["MAX_SUBDOC_LENGTHS"]:
-			model = env.TrainDETM( \
-				"work/detm_model_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.bin", \
-				[full_content_clean, embeddings], \
-				NUM_TOPICS = num_topics, \
-				WINDOW_SIZE = num_windows, \
-				MAX_SUBDOC_LEN = max_subdoc_len)
-			labeled = env.ApplyDETM( \
-				"work/results_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.json.gz", \
-				[full_content_clean, model], \
-				NUM_TOPICS = num_topics, \
-				WINDOW_SIZE = num_windows, \
-				MAX_SUBDOC_LEN = max_subdoc_len)
+			if (num_topics, max_subdoc_len, num_windows) not in already_existing:
+				print(num_topics)
+				print(num_windows)
+				print(max_subdoc_len)
+				#if max_subdoc_len == 50:
+				#	batch = 3000
+				#else:
+				#	batch = 2000
+				batch = 2000
+				model = env.TrainDETM( \
+					"work/detm_model_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.bin", \
+					[full_content_clean, embeddings], \
+					NUM_TOPICS = num_topics, \
+					WINDOW_SIZE = num_windows, \
+					MAX_SUBDOC_LEN = max_subdoc_len, \
+					BATCH_SIZE = batch)
+				labeled = env.ApplyDETM( \
+					"work/results_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.json.gz", \
+					[full_content_clean, model], \
+					NUM_TOPICS = num_topics, \
+					WINDOW_SIZE = num_windows, \
+					MAX_SUBDOC_LEN = max_subdoc_len)
+			else:
+				labeled = env.ApplyDETM( \
+					"work/detm_model_{nt}_{msl}_{ws}.json.gz".format(nt = num_topics, msl = max_subdoc_len, ws = num_windows), \
+					[full_content_clean, \
+					"work/detm_model_{nt}_{msl}_{ws}.bin".format(nt = num_topics, msl = max_subdoc_len, ws = num_windows)], \
+					NUM_TOPICS = num_topics, \
+					WINDOW_SIZE = num_windows, \
+					MAX_SUBDOC_LEN = max_subdoc_len)
+
 			matrices = env.CreateMatrices( \
 				"work/matrices_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.pkl.gz", \
 				labeled, \
