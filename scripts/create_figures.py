@@ -90,14 +90,24 @@ if __name__ == "__main__":
         word_win_topic_dist[:, win, :] = (word_win_topic[:, win, :].T / word_win[:, win]).T
     word_win_topic_maxes = numpy.sort(word_win_topic_dist, axis=2)[:, :, -2:]
 
+    print("word_win_topic shape " + str(word_win_topic.shape))
+    print(word_win[:5,:])
+    print("word_win shape " + str(word_win.shape))
+
     words = []
     word_win_modality = (word_win_topic_maxes[:, :, -1] - word_win_topic_maxes[:, :, -2]) + (1 - (word_win_topic_maxes[:, :, -1] + word_win_topic_maxes[:, :, -2]))
 
+    print(word_win_modality.shape)
+    #raise Exception
 
     word_modality_changepoint_delta = numpy.zeros(shape=(word_win_modality.shape[0],))
     for i, mod in enumerate(word_win_modality):
-        if numpy.isnan(mod).sum() < 3:
+        #print("mod shape: " + str(mod.shape))
+        if numpy.isnan(mod).sum() == 0:
             modalities = numpy.array([v for v in mod if not numpy.isnan(v)])
+            #print(mod)
+            #print("modalities shape: " + str(modalities.shape))
+            print(modalities)
             #ent = word_win_entropies[i]
             cps = ruptures.Dynp(model="l2", min_size=1, jump=1).fit_predict(modalities.T, 1)
             cp = cps[0]

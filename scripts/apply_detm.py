@@ -190,7 +190,7 @@ if __name__ == "__main__":
 
 
 	## visualize
-
+"""
         model.eval()
         with torch.no_grad():
             alpha = model.mu_q_alpha
@@ -199,7 +199,7 @@ if __name__ == "__main__":
             print('\n')
             print('#'*100)
             print('Visualize topics...')
-            times = beta.shape[1]
+            times = range(beta.shape[1])
             topics_words = []
             #print(beta.shape)
             for k in range(beta.shape[0]):
@@ -210,3 +210,4 @@ if __name__ == "__main__":
                     topic_words = [model.id2token[a] for a in top_words]
                     topics_words.append(' '.join(topic_words))
                     print('Topic {} .. Time: {} ===> {}'.format(k, t, topic_words)) 
+"""

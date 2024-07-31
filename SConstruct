@@ -36,7 +36,7 @@ vars.AddVariables(\
 	("WINDOW_SIZES", "", [50, 75]), \
 	("MIN_WORD_OCCURRENCE", "", 60), \
 	("MAX_WORD_PROP", "", 0.7), \
-	("MAX_SUBDOC_LENGTHS", "", [200, 400]), \
+	("MAX_SUBDOC_LENGTHS", "", [50, 200, 400]), \
 	("BATCH_SIZE", "", 2000), \
 	("RANDOM_SEED", "", 1) \
 )
@@ -84,7 +84,11 @@ else:
 
 	embeddings = "work/word_2_vec_embeddings.bin"
 
-already_existing = [(10, 200, 75), (10, 400, 50), (10, 400, 75), (10, 50, 50), (5, 200, 50), (5, 200, 75), (5, 400, 50)]
+already_existing = [(10, 200, 50), (10, 200, 75), (10, 400, 50), (10, 400, 75), (10, 50, 50), (10, 50, 75), (5, 200, 50), \
+	(5, 200, 75), (5, 400, 50), (5, 400, 75), (5, 50, 50), (5, 50, 75)]
+already_existing_result = already_existing
+already_existing_matrices = already_existing
+#[(10, 200, 50), (10, 200, 75), (10, 400, 50), (10, 400, 75), (10, 50, 50), (5, 200, 50), (5, 200, 75), (5, 400, 50)]
 #model_names = ["work/detm_model_{nt}_{msl}_{ws}.bin".format(nt = model[0], msl = model[1], ws = model[2]) for model in already_existing]
 for num_topics in env["NUMS_OF_TOPICS"]:
 	for num_windows in env["WINDOW_SIZES"]:
@@ -111,21 +115,26 @@ for num_topics in env["NUMS_OF_TOPICS"]:
 					NUM_TOPICS = num_topics, \
 					WINDOW_SIZE = num_windows, \
 					MAX_SUBDOC_LEN = max_subdoc_len)
-			else:
+			elif (num_topics, max_subdoc_len, num_windows) not in already_existing_result:
 				labeled = env.ApplyDETM( \
-					"work/detm_model_{nt}_{msl}_{ws}.json.gz".format(nt = num_topics, msl = max_subdoc_len, ws = num_windows), \
+					"work/results_{nt}_{msl}_{ws}.json.gz".format(nt = num_topics, msl = max_subdoc_len, ws = num_windows), \
 					[full_content_clean, \
 					"work/detm_model_{nt}_{msl}_{ws}.bin".format(nt = num_topics, msl = max_subdoc_len, ws = num_windows)], \
 					NUM_TOPICS = num_topics, \
 					WINDOW_SIZE = num_windows, \
 					MAX_SUBDOC_LEN = max_subdoc_len)
+			else:
+				labeled = "work/results_{nt}_{msl}_{ws}.json.gz".format(nt = num_topics, msl = max_subdoc_len, ws = num_windows)
 
-			matrices = env.CreateMatrices( \
-				"work/matrices_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.pkl.gz", \
-				labeled, \
-				NUM_TOPICS = num_topics, \
-				WINDOW_SIZE = num_windows, \
-				MAX_SUBDOC_LEN = max_subdoc_len)
+			if (num_topics, max_subdoc_len, num_windows) not in already_existing_matrices:
+				matrices = env.CreateMatrices( \
+					"work/matrices_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.pkl.gz", \
+					labeled, \
+					NUM_TOPICS = num_topics, \
+					WINDOW_SIZE = num_windows, \
+					MAX_SUBDOC_LEN = max_subdoc_len)
+			else:
+				matrices = "work/matrices_{nt}_{msl}_{ws}.pkl.gz".format(nt = num_topics, msl = max_subdoc_len, ws = num_windows)
 
 			figs = env.CreateFigures( \
 				["work/temporal_image_${NUM_TOPICS}_${MAX_SUBDOC_LEN}_${WINDOW_SIZE}.png", \
